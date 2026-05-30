@@ -11,3 +11,6 @@
 - "spectr_integrals.m" -- вычиление спектральных параметров по мощности DCWT (|V_{DCWT}(\nu, t)|^2)
 
 Порядок выполнения скриптов: "prep_EKG.py" -> "boarders.py" -> "CWT_signal_EKG.m" -> "local_frec.py" -> "DCWT_signal_local_freq.m" -> "spectr_integrals.m"
+
+## Результаты полученные для записи №102
+Результаты находятся в папке images/. 
