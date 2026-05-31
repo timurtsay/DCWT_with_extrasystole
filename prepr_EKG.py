@@ -184,7 +184,7 @@ def plot_tachogram(data, t_start_tah=None, t_end_tah=None, output_path=None):
     ax.grid(True, alpha=0.45, linestyle='--', linewidth=0.8)
     ax.set_axisbelow(True)
 
-    # 🛠 ИСПРАВЛЕНИЕ: сохранение графика перед показом
+
     if output_path:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         print(f"График сохранен: {output_path}")
@@ -244,7 +244,6 @@ if __name__ == '__main__':
         plot_tachogram(data, t_start_tah=T_START_TAH, t_end_tah=T_END_TAH,
                        output_path=f'tachogram_{RECORD_NUM}_{int(T_START_TAH)}-{int(T_END_TAH)}sec.png')
 
-        print("\n" + "=" * 70 + "\n✅ ПЛАЙПЛАЙН ЗАВЕРШЕН УСПЕШНО!\n" + "=" * 70)
     except Exception as e:
         print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
         import traceback

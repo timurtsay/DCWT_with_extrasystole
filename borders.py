@@ -10,8 +10,8 @@ filename = 'rr_final_105_1280sec.csv'
 # ------------------------------------------------------------
 try:
     data = np.loadtxt(filename, delimiter=',', skiprows=1)
-    t_load = data[:, 0]  # Время (с)
-    RR_ms = data[:, 1]  # RR-интервалы (мс)
+    t_load = data[:, 0]
+    RR_ms = data[:, 1]
 
     print(f"✓ Файл загружён: {filename}")
     print(f"✓ Количество RR-интервалов: {len(RR_ms)}")
@@ -21,19 +21,19 @@ except Exception as e:
     raise SystemExit
 
 # ------------------------------------------------------------
-# 2. ПАРАМЕТРЫ ИЗ СТАТЬИ (как в MATLAB-коде)
+# 2. ПАРАМЕТРЫ ИЗ СТАТЬИ
 # ------------------------------------------------------------
 m = 7
 Delta_x = 0.707
 Delta_R = 1.5
-fs_low = 50  # ← КРИТИЧЕСКИ ВАЖНО: шаг 1/50 = 0.02 с
+fs_low = 50
 
 RR_s = RR_ms / 1000.0
-T_total = t_load[-1] - t_load[0]  # Общая длительность записи
+T_total = t_load[-1] - t_load[0]
 t_start = t_load[0]
 
 # ------------------------------------------------------------
-# 3. РАСЧЁТ РАБОЧЕГО ИНТЕРВАЛА (как в MATLAB!)
+# 3. РАСЧЁТ РАБОЧЕГО ИНТЕРВАЛА
 # ------------------------------------------------------------
 nu_min_global = (m + 4 * Delta_R) / T_total
 t_L_border = 2 * Delta_x / nu_min_global
@@ -50,7 +50,7 @@ print(f"  Рабочий интервал: [{t_work_start:.2f}, {t_work_end:.2f}
 # ------------------------------------------------------------
 # 4. СОЗДАНИЕ СЕТКИ ГРАНИЦ = СЕТКЕ СКЕЙЛОГРАММЫ
 # ------------------------------------------------------------
-# Шаг точно такой же, как в MATLAB: 1/fs_low = 0.02 с
+
 dt_save = 1.0 / fs_low
 t_boundary = np.arange(t_work_start, t_work_end + 1e-9, dt_save)
 
@@ -60,7 +60,7 @@ print(f"  Точек: {len(t_boundary)}")
 print(f"  Диапазон: [{t_boundary[0]:.2f}, {t_boundary[-1]:.2f}] с")
 
 # ------------------------------------------------------------
-# 5. ВЫЧИСЛЕНИЕ ДИСКРЕТНЫХ ГРАНИЦ (ИСПРАВЛЕНО)
+# 5. ВЫЧИСЛЕНИЕ ДИСКРЕТНЫХ ГРАНИЦ
 # ------------------------------------------------------------
 B_min, B_max = 0.001, 0.21
 RR_cr, tau_RR = 0.84, 0.12
@@ -85,7 +85,6 @@ f_min = np.zeros_like(f_n)
 A_vals = np.full_like(f_n, A_normal)
 
 for i in range(len(RR_s)):
-    # Относительный критерий паузы (работает с вашими данными)
     if i > 0 and is_ecopic[i - 1] and RR_s[i] > RR_s[i - 1] * 1.3:
         A_vals[i] = A_comp
     f_max[i] = (1.0 + B_vals[i]) * f_n[i]
@@ -93,14 +92,14 @@ for i in range(len(RR_s)):
 
 
 # ------------------------------------------------------------
-# 6. СИГМОИДАЛЬНАЯ АППРОКСИМАЦИЯ (ИСПРАВЛЕНО)
+# 6. СИГМОИДАЛЬНАЯ АППРОКСИМАЦИЯ
 # ------------------------------------------------------------
 def sigmoid_approx(f_boundary, t_n, t_eval, RR_s, is_ecopic):
     N = len(f_boundary)
     F_cont = np.full_like(t_eval, f_boundary[0], dtype=float)
 
     for n in range(1, N):
-        # Для экстрасистолы центр перехода = точное время R-зубца из CSV
+
         if is_ecopic[n - 1]:
             t_c = t_n[n]
         else:
@@ -113,11 +112,11 @@ def sigmoid_approx(f_boundary, t_n, t_eval, RR_s, is_ecopic):
     return F_cont
 
 
-# Передаём is_ecopic в функцию
+
 F_upper = sigmoid_approx(f_max, t_n, t_boundary, RR_s, is_ecopic)
 F_lower = sigmoid_approx(f_min, t_n, t_boundary, RR_s, is_ecopic)
 # ------------------------------------------------------------
-# 7. ЖЁСТКОЕ ОГРАНИЧЕНИЕ ПО ЧАСТОТЕ (как в статье)
+# 7. ЖЁСТКОЕ ОГРАНИЧЕНИЕ ПО ЧАСТОТЕ
 # ------------------------------------------------------------
 NU_MAX_CWT1 = 2.0
 nu_min_cwt = max(13.0 / T_total, 0.04)  # Формула из статьи
@@ -130,7 +129,7 @@ print(f"✓ Верхняя граница: [{F_upper.min():.4f}, {F_upper.max():
 print(f"✓ Нижняя граница: [{F_lower.min():.4f}, {F_lower.max():.4f}] Гц")
 
 # ------------------------------------------------------------
-# 8. СОХРАНЕНИЕ (БЕЗ ИНТЕРПОЛЯЦИИ!)
+# 8. СОХРАНЕНИЕ
 # ------------------------------------------------------------
 # Верхняя граница
 output_file = 'upper_boundary_105.txt'
@@ -170,7 +169,7 @@ plt.fill_between(t_boundary, F_lower, F_upper, color='lightblue', alpha=0.4, lab
 plt.plot(t_boundary, F_upper, 'b--', linewidth=2.0, label='$F^{>}(t)$ (верхняя)')
 plt.plot(t_boundary, F_lower, 'r--', linewidth=2.0, label='$F^{<}(t)$ (нижняя)')
 
-# Дискретные точки (для контекста)
+# Дискретные точки
 plt.scatter(t_n, f_n, c='gray', s=15, alpha=0.5, zorder=2, label='$f_n = 1/RR_n$')
 
 plt.xlabel('Время, с', fontsize=12, fontweight='bold')

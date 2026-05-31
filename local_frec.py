@@ -45,48 +45,40 @@ try:
     print(f"   ✓ Загружено {len(RR_s)} RR-интервалов")
 
     # === КРИТЕРИИ ===
-    ECTOPIC_THRESH = 0.5  # Короткий интервал (экстрасистола)
-    PAUSE_THRESH = 0.8  # Длинный интервал (пауза). Настройте, если ритм медленный (>0.9)
+    ECTOPIC_THRESH = 0.5  #экстрасистола
+    PAUSE_THRESH = 0.8  # пауза Для разных ритмов можно подобрать разные значения
 
     is_ectopic = np.zeros(len(RR_s), dtype=bool)
     is_pause = np.zeros(len(RR_s), dtype=bool)
 
     for i in range(len(RR_s)):
-        # 1. Экстрасистола: текущий интервал короткий
+
         if RR_s[i] < ECTOPIC_THRESH:
             is_ectopic[i] = True
 
-        # 2. Пауза: если текущий интервал длинный (и желательно следует за коротким)
-        # Проверяем, что это не просто медленный синус, а именно пауза (> 1.0 с)
         if RR_s[i] > PAUSE_THRESH:
             is_pause[i] = True
 
-    print(f"   ✓ Экстрасистол: {np.sum(is_ectopic)}, Пауз: {np.sum(is_pause)}")
+    print(f"Экстрасистол: {np.sum(is_ectopic)}, Пауз: {np.sum(is_pause)}")
 
     # === СОЗДАНИЕ МАСОК ДЛЯ СКЕЙЛОГРАММЫ ===
     ectopic_mask = np.zeros_like(t, dtype=bool)
     pause_mask = np.zeros_like(t, dtype=bool)
-    WINDOW_HALF = 0.35  # Полширины окна события
+    WINDOW_HALF = 0.35
 
     for i in range(len(RR_s)):
         t_curr = t_rr[i]
 
-        # Маска экстрасистолы (центр = момент удара)
         if is_ectopic[i]:
             mask = (t >= t_curr - WINDOW_HALF) & (t <= t_curr + WINDOW_HALF)
             ectopic_mask[mask] = True
-
-        # Маска паузы (центр = середина длинного интервала)
-        # t_curr - это время R-зубца. Интервал RR_s[i] заканчивается в t_curr.
-        # Значит, начало интервала было в t_curr - RR_s[i].
-        # Середина паузы:
         if is_pause[i]:
             t_center_pause = t_curr - (RR_s[i] / 2.0)
             mask = (t >= t_center_pause - WINDOW_HALF) & (t <= t_center_pause + WINDOW_HALF)
             pause_mask[mask] = True
 
-    print(f"   ✓ Точек с экстрасистолой: {np.sum(ectopic_mask)}")
-    print(f"   ✓ Точек с паузой:         {np.sum(pause_mask)}")
+    print(f"Точек с экстрасистолой: {np.sum(ectopic_mask)}")
+    print(f"Точек с паузой: {np.sum(pause_mask)}")
 
 except Exception as e:
     print(f"Ошибка RR: {e}")
@@ -100,7 +92,6 @@ print(f"\n3. Загрузка границ...")
 
 
 def load_boundary(filename):
-    """Загружает границы с правильным разделителем"""
     try:
         data = np.loadtxt(filename, delimiter='\t', skiprows=1, encoding='utf-8')
     except:
@@ -133,8 +124,6 @@ print(f"   Нижняя граница (обрезана): {len(t_lower)} точ
 # ------------------------------------------------------------
 # 5. СИНХРОНИЗАЦИЯ ВРЕМЕННЫХ СЕТОК И МАСОК
 # ------------------------------------------------------------
-print(f"\n5. Синхронизация временных сеток...")
-
 t_samples = t_upper
 nu_max_interp = nu_max_nodes
 nu_min_interp = nu_min_nodes
@@ -150,19 +139,19 @@ if ectopic_mask is not None:
 else:
     ectopic_mask_samples = None
 
-# 2. Маска паузы (НОВОЕ)
+# 2. Маска паузы
 if pause_mask is not None:
     pause_mask_samples = np.zeros_like(t_samples, dtype=bool)
     for i, t_curr in enumerate(t_samples):
         idx = np.argmin(np.abs(t - t_curr))
         pause_mask_samples[i] = pause_mask[idx]
-    print(f"   ✓ Пауз на сетке анализа: {np.sum(pause_mask_samples)}")
+    print(f"Пауз на сетке анализа: {np.sum(pause_mask_samples)}")
 else:
     pause_mask_samples = None
 
 
 # ============================================================================
-# ФУНКЦИЯ ПОИСКА ПИКА (ЭКСТРАСИСТОЛА + ПАУЗА)
+# ФУНКЦИЯ ПОИСКА ПИКА
 # ============================================================================
 def find_peak_with_conditions(Power, nu, t, t_curr, nu_min, nu_max,
                               is_ectopic=False, is_pause=False):
@@ -171,7 +160,7 @@ def find_peak_with_conditions(Power, nu, t, t_curr, nu_min, nu_max,
     - Пауза: пик на НИЖНЕЙ границе
     - Норма: поиск максимума внутри
     """
-    # 1. Интерполяция спектра (без изменений)
+    # 1. Интерполяция спектра
     if t_curr <= t[0]:
         t_idx_left, t_idx_right, alpha = 0, 1, 0.0
     elif t_curr >= t[-1]:
@@ -183,14 +172,12 @@ def find_peak_with_conditions(Power, nu, t, t_curr, nu_min, nu_max,
 
     p_interp = (1 - alpha) * Power[:, t_idx_left] + alpha * Power[:, t_idx_right]
 
-    # 2. ЛОГИКА ПРИНУДИТЕЛЬНЫХ ГРАНИЦ
     if is_ectopic:
-        return nu_max  # Экстрасистола -> Верхняя граница
+        return nu_max
 
     if is_pause:
-        return nu_min  # Пауза -> Нижняя граница
+        return nu_min
 
-    # 3. Обычный поиск (без изменений)
     nu_mask = (nu >= nu_min) & (nu <= nu_max)
     nu_valid = nu[nu_mask]
     p_valid = p_interp[nu_mask]
@@ -206,7 +193,7 @@ def find_peak_with_conditions(Power, nu, t, t_curr, nu_min, nu_max,
     pk_idx = np.argmax(p_valid)
     nu_peak = nu_valid[pk_idx]
 
-    # Параболическая интерполяция (без изменений)
+    # Параболическая интерполяция
     if 0 < pk_idx < len(p_valid) - 1:
         try:
             a, b, _ = np.polyfit(nu_valid[pk_idx - 1:pk_idx + 2], p_valid[pk_idx - 1:pk_idx + 2], 2)
@@ -222,14 +209,12 @@ def find_peak_with_conditions(Power, nu, t, t_curr, nu_min, nu_max,
 # ------------------------------------------------------------
 # 6. ЗАПУСК ПОИСКА
 # ------------------------------------------------------------
-print(f"\n6. Поиск пиков...")
 nu_peaks_raw = np.zeros_like(t_samples)
 
 for i, t_curr in enumerate(t_samples):
     is_e = ectopic_mask_samples[i] if ectopic_mask_samples is not None else False
     is_p = pause_mask_samples[i] if pause_mask_samples is not None else False
 
-    # Если точка попала и в экстрасистолу, и в паузу (наложение окон), приоритет у экстрасистолы
     if is_e: is_p = False
 
     nu_peaks_raw[i] = find_peak_with_conditions(
@@ -239,8 +224,7 @@ for i, t_curr in enumerate(t_samples):
         is_pause=is_p
     )
 
-print(f"   ✓ Готово. Диапазон: [{nu_peaks_raw.min():.3f}, {nu_peaks_raw.max():.3f}] Гц")
-# ДИАГНОСТИКА: сколько пиков на верхней границе?
+print(f" Диапазон: [{nu_peaks_raw.min():.3f}, {nu_peaks_raw.max():.3f}] Гц")
 on_upper = np.sum(np.isclose(nu_peaks_raw, nu_max_interp, atol=1e-3))
 on_lower = np.sum(np.isclose(nu_peaks_raw, nu_min_interp, atol=1e-3))
 print(f"   Пики на верхней границе: {on_upper} ({on_upper / len(nu_peaks_raw) * 100:.1f}%)")
@@ -249,8 +233,6 @@ print(f"   Пики на нижней границе: {on_lower} ({on_lower / le
 # ------------------------------------------------------------
 # 7. СГЛАЖИВАНИЕ ТРАЕКТОРИИ
 # ------------------------------------------------------------
-print(f"\n7. Сглаживание траектории (сигмоидная аппроксимация)...")
-
 nu_peaks = np.full_like(t_samples, nu_peaks_raw[0], dtype=float)
 
 #tau_values = []
@@ -260,9 +242,6 @@ for n in range(1, len(t_samples)):
     tc = (t_samples[n] + t_samples[n - 1]) / 2
 
     dt_local = t_samples[n] - t_samples[n - 1]
-    #tau_n = dt_local / 10
-    #tau_values.append(tau)
-
     nu_peaks += delta / (1 + np.exp(-(t_samples - tc) / tau))
 
 nu_peaks = np.clip(nu_peaks, nu_min_interp, nu_max_interp)
@@ -273,10 +252,10 @@ dt_mean = np.mean(np.diff(t_samples))
 #tau_min = np.min(tau_values)
 #tau_max = np.max(tau_values)
 
-print(f"   Средний шаг времени: {dt_mean:.6f} с")
+print(f"Средний шаг времени: {dt_mean:.6f} с")
 #print(f"   Характеристическое время τ: среднее={tau_mean:.6f} с, диапазон=[{tau_min:.6f}, {tau_max:.6f}] с")
-print(f"   Диапазон сырой: [{nu_peaks_raw.min():.4f}, {nu_peaks_raw.max():.4f}] Гц")
-print(f"   Диапазон сглаженной: [{nu_peaks.min():.4f}, {nu_peaks.max():.4f}] Гц")
+print(f"Диапазон сырой: [{nu_peaks_raw.min():.4f}, {nu_peaks_raw.max():.4f}] Гц")
+print(f"Диапазон сглаженной: [{nu_peaks.min():.4f}, {nu_peaks.max():.4f}] Гц")
 
 # ------------------------------------------------------------
 # 8. ВИЗУАЛИЗАЦИЯ
@@ -307,7 +286,6 @@ ax.set_ylim(nu_min_interp.min() * 0.95, nu_max_interp.max() * 1.05)
 
 plt.tight_layout()
 plt.savefig('local_frequency_105.png', dpi=300, bbox_inches='tight')
-print("   ✓ График сохранён: local_frequency_105.png")
 plt.show()
 
 # ------------------------------------------------------------
@@ -324,8 +302,8 @@ output_file = 'peaks_105.txt'
 np.savetxt(output_file, np.column_stack([t_save, nu_peaks_save]),
            fmt='%.6f', delimiter='\t', header='Time(s)\tNu_peak(Hz)', comments='')
 
-print(f"   ✓ Траектория сохранена: {output_file}")
-print(f"   Количество точек: {len(nu_peaks_save)} (было {len(nu_peaks)})")
-print(f"   Шаг времени: {dt_save:.3f} с (было {np.mean(np.diff(t_samples)):.4f} с)")
-print(f"   Диапазон времени: [{t_save.min():.2f}, {t_save.max():.2f}] с")
-print(f"   Диапазон частот: [{nu_peaks_save.min():.4f}, {nu_peaks_save.max():.4f}] Гц")
+print(f"Траектория сохранена: {output_file}")
+print(f"Количество точек: {len(nu_peaks_save)} (было {len(nu_peaks)})")
+print(f"Шаг времени: {dt_save:.3f} с (было {np.mean(np.diff(t_samples)):.4f} с)")
+print(f"Диапазон времени: [{t_save.min():.2f}, {t_save.max():.2f}] с")
+print(f"Диапазон частот: [{nu_peaks_save.min():.4f}, {nu_peaks_save.max():.4f}] Гц")
